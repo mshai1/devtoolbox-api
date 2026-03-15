@@ -1,7 +1,20 @@
 const axios = require("axios");
 const cheerio = require("cheerio");
 
+const { client } = require("../utils/redisClient");
+
 async function fetchMetadata(url) {
+    const cacheKey = `metadata:${url}`;
+
+    const cached = await client.get(cacheKey);
+
+    if (cached) {
+        console.log("Cache hit");
+        return JSON.parse(cached);
+    }
+
+    console.log("Cache miss");
+
     const response = await axios.get(url);
 
     const html = response.data;
@@ -22,12 +35,18 @@ async function fetchMetadata(url) {
         $('link[rel="shortcut icon"]').attr("href") ||
         null;
 
-    return {
+    const result = {
         title,
         description,
         image,
         favicon
     };
+
+    await client.set(cacheKey, JSON.stringify(result), {
+        EX: 3600
+    });
+
+    return result;
 }
 
 module.exports = {
